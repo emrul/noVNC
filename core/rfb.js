@@ -24,6 +24,7 @@ import initializePrinterRelay from "./output/printer.js";
 import initializeSmartcardRelay from "./output/smartcard.js";
 import GestureHandler from "./input/gesturehandler.js";
 import IOSKeyboard from "./input/ioskeyboard.js";
+import TouchHold from "./input/touchhold.js";
 import TextInputFocusGate from "./input/textinputfocusgate.js";
 import Cursor from "./util/cursor.js";
 import Websock from "./websock.js";
@@ -352,6 +353,23 @@ export default class RFB extends EventTargetMixin {
             },
             enabled: () => this.autoKeyboard,
         });
+        // Native touch: a finger held still and then moved is a mouse drag.
+        this._touchHold = new TouchHold({
+            touch: (id, state, clientX, clientY) => {
+                const pos = clientToElement(clientX, clientY, this._canvas);
+                this._sendTouch(id >>> 0, state, this._display.absX(pos.x), this._display.absY(pos.y));
+            },
+            mouse: (clientX, clientY, mask) => {
+                const pos = clientToElement(clientX, clientY, this._canvas);
+                if (this._mouseMoveTimer !== null) {
+                    clearTimeout(this._mouseMoveTimer);
+                    this._mouseMoveTimer = null;
+                }
+                this._mousePos = { x: pos.x, y: pos.y };
+                this._mouseButtonMask = mask;
+                this._sendMouse(pos.x, pos.y, mask);
+            },
+        });
 
         this._gestures = new GestureHandler();
 
@@ -365,6 +383,7 @@ export default class RFB extends EventTargetMixin {
         this.dragViewport = false;
         this.focusOnClick = true;
         this.autoKeyboard = true;
+        this._touchHoldSelect = false;
         this.lastActiveAt = options.lastActiveAt || Date.now();
 
         this._viewOnly = false;
@@ -815,7 +834,20 @@ export default class RFB extends EventTargetMixin {
             this._touchMode = value;
             this._textInputFocusGate.reset();
             this._iosKeyboard?.reset();
+            this._touchHold.reset();
             this._updateGestureHandler();
+        }
+    }
+
+    // Native touch: a finger held still (TouchHold's holdMs) and then moved
+    // drags the mouse's left button; held still longer (longMs), a touch
+    // from then on. Off: every touch goes to the server as it happens.
+    get touchHoldSelect() { return this._touchHoldSelect; }
+    set touchHoldSelect(value) {
+        value = !!value;
+        if (value !== this._touchHoldSelect) {
+            this._touchHoldSelect = value;
+            this._touchHold.reset();
         }
     }
 
@@ -1614,6 +1646,7 @@ export default class RFB extends EventTargetMixin {
         this._canvas.removeEventListener("touchcancel", this._eventHandlers.handleNativeTouch, true);
         this._canvas.removeEventListener("wheel", this._eventHandlers.handleWheel);
         this._iosKeyboard?.detach();
+        this._touchHold.reset();
         this._canvas.removeEventListener('mousedown', this._eventHandlers.handleMouse);
         this._canvas.removeEventListener('mouseup', this._eventHandlers.handleMouse);
         this._canvas.removeEventListener('mousemove', this._eventHandlers.handleMouse);
@@ -2791,27 +2824,31 @@ export default class RFB extends EventTargetMixin {
         if (!this._iosKeyboard?.handleTouch(ev))
             ev.preventDefault();
 
-        const changed = ev.changedTouches;
-        for (let i = 0; i < changed.length; i++) {
-            const touch = changed[i];
-            const pos = clientToElement(touch.clientX, touch.clientY, this._canvas);
-            const x = this._display.absX(pos.x);
-            const y = this._display.absY(pos.y);
-            // Browser touch identifiers can be large or negative; coerce to an
-            // unsigned 32-bit value to match the wire format.
-            const id = touch.identifier >>> 0;
+        if (this._touchHoldSelect) {
+            this._touchHold.handleTouch(ev);
+        } else {
+            const changed = ev.changedTouches;
+            for (let i = 0; i < changed.length; i++) {
+                const touch = changed[i];
+                const pos = clientToElement(touch.clientX, touch.clientY, this._canvas);
+                const x = this._display.absX(pos.x);
+                const y = this._display.absY(pos.y);
+                // Browser touch identifiers can be large or negative; coerce to an
+                // unsigned 32-bit value to match the wire format.
+                const id = touch.identifier >>> 0;
 
-            let state;
-            if (ev.type === 'touchstart') {
-                state = 0; // begin
-            } else if (ev.type === 'touchmove') {
-                state = 1; // update
-            } else {
-                // touchend / touchcancel
-                state = 2; // end
+                let state;
+                if (ev.type === 'touchstart') {
+                    state = 0; // begin
+                } else if (ev.type === 'touchmove') {
+                    state = 1; // update
+                } else {
+                    // touchend / touchcancel
+                    state = 2; // end
+                }
+
+                this._sendTouch(id, state, x, y);
             }
-
-            this._sendTouch(id, state, x, y);
         }
 
         this._textInputFocusGate.handleTouch(ev);

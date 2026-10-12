@@ -358,6 +358,9 @@ const UI = {
         UI.initSetting('enable_ime', false);
         UI.initSetting('touch_mode', 'native');
         UI.initSetting('auto_keyboard', true);
+        // Native touch on a phone or tablet: a finger held still and then
+        // moved drags the mouse (selects text in apps that select by mouse).
+        UI.initSetting('touch_hold_select', deviceClass() !== 'desktop');
         UI.initSetting('enable_webrtc', false);
         // Phones and tablets have 2-3 device pixels per CSS pixel; without
         // native resolution the session runs at about half that and is
@@ -732,6 +735,8 @@ const UI = {
         UI.addSettingChangeHandler('enable_ime', UI.toggleIMEMode);
         UI.addSettingChangeHandler('auto_keyboard');
         UI.addSettingChangeHandler('auto_keyboard', UI.updateAutoKeyboard);
+        UI.addSettingChangeHandler('touch_hold_select');
+        UI.addSettingChangeHandler('touch_hold_select', UI.updateTouchHoldSelect);
         UI.addSettingChangeHandler('touch_mode');
         UI.addSettingChangeHandler('touch_mode', UI.updateTouchMode);
         UI.addSettingChangeHandler('enable_webrtc');
@@ -2042,6 +2047,7 @@ const UI = {
         UI.rfb.keyboard.enableIME = UI.getSetting('enable_ime');
         UI.rfb.touchMode = UI.getSetting('touch_mode');
         UI.rfb.autoKeyboard = UI.getSetting('auto_keyboard');
+        UI.rfb.touchHoldSelect = UI.getSetting('touch_hold_select');
         UI.rfb.clipboardBinary = supportsBinaryClipboard() && UI.rfb.clipboardSeamless;
         UI.rfb.enableWebRTC = UI.getSetting('enable_webrtc');
         UI.rfb.mouseButtonMapper = UI.initMouseButtonMapper();
@@ -2477,6 +2483,14 @@ const UI = {
                     UI.forceSetting('auto_keyboard', true, false);
                     UI.updateAutoKeyboard();
 
+                    break;
+                case 'enable_touch_hold_select':
+                    UI.forceSetting('touch_hold_select', true, false);
+                    UI.updateTouchHoldSelect();
+                    break;
+                case 'disable_touch_hold_select':
+                    UI.forceSetting('touch_hold_select', false, false);
+                    UI.updateTouchHoldSelect();
                     break;
                 case 'disable_auto_keyboard':
                     UI.forceSetting('auto_keyboard', false, false);
@@ -3453,6 +3467,11 @@ const UI = {
     updateAutoKeyboard() {
         if (UI.rfb)
             UI.rfb.autoKeyboard = UI.getSetting('auto_keyboard');
+    },
+
+    updateTouchHoldSelect() {
+        if (UI.rfb)
+            UI.rfb.touchHoldSelect = UI.getSetting('touch_hold_select');
     },
 
     toggleWebRTC() {
