@@ -2,29 +2,12 @@
  * KasmVNC: "hold, then drag selects" for native touch mode.
  * Licensed under MPL 2.0 (see LICENSE.txt)
  *
- * With native touch the server gets the finger as a touch, and a
- * touch-aware app in the session (Chrome) runs its own touch gestures:
- * a drag scrolls, and a finger held still for 500 ms is a long press (a
- * context menu). An editor that selects text only by a mouse drag (Google
- * Docs editing, LibreOffice Online, most desktop apps) then has no way to
- * select by touch. This classifies each one-finger gesture before the
- * server sees it:
- *
- * - The finger lifts before it moves (a tap, however long it rested, up to
- *   longMs): a touch tap, its begin and end sent together on the lift, so
- *   the server's tap verdicts and the touch keyboard work as before.
- * - It moves before holdMs: a touch, from its first move (begin at the
- *   start point, then the move), so a swipe scrolls as before.
- * - It rests still for holdMs and then moves: a left-button mouse drag
- *   from the start point; the touch never reaches the server, so the app
- *   sees a mouse selecting and no long press.
- * - It rests still for longMs: a touch from then on (begin at the point),
- *   so the app's own long press still happens (a context menu, Chrome's
- *   touch text selection), longMs later than without this.
- *
- * A second finger before the first is classified makes it all a touch
- * (pinch, two-finger scroll). During a mouse drag other fingers are
- * ignored; the drag follows the first.
+ * Classifies a one-finger gesture before the server sees it:
+ * - lifted before moving: a touch tap
+ * - moved before holdMs: a touch (scrolls)
+ * - still for holdMs, then moved: a left-button mouse drag (selects)
+ * - still for longMs: a touch, so the app's long press still happens
+ * A second finger before classification makes it all a touch.
  */
 
 import * as Log from '../util/logging.js';
@@ -53,8 +36,6 @@ export default class TouchHold {
 
     get state() { return this._state; }
 
-    // End whatever is in progress: a drag's button is released, a touch not
-    // yet sent is dropped.
     reset() {
         if (this._state === 'mouse') {
             this._mouse(this._first.lastX, this._first.lastY, 0);
@@ -63,7 +44,6 @@ export default class TouchHold {
     }
 
     handleTouch(ev) {
-        // Every finger new: a new gesture, whatever state a lost touchend left.
         if (ev.type === 'touchstart' && ev.touches.length === ev.changedTouches.length &&
             this._state !== 'idle') {
             this.reset();
@@ -107,7 +87,6 @@ export default class TouchHold {
     _onPending(ev) {
         const f = this._first;
         if (ev.type === 'touchstart') {
-            // A second finger: all of it is a touch.
             Log.Debug("Touch hold: a second finger, passing the touches through");
             this._toTouch();
             this._forward(ev);
@@ -141,7 +120,6 @@ export default class TouchHold {
         // touchend / touchcancel of the first finger before it moved
         this._clearTimers();
         if (ev.type === 'touchend') {
-            // A tap: the touch the server sees starts and ends here.
             this._touch(f.id, BEGIN, f.x, f.y);
             this._touch(f.id, END, f.x, f.y);
         }
@@ -182,7 +160,6 @@ export default class TouchHold {
         this._toTouch();
     }
 
-    // The first finger, held back so far, goes to the server as a touch.
     _toTouch() {
         const f = this._first;
         this._clearTimers();

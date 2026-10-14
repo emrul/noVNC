@@ -192,9 +192,9 @@ export default class RFB extends EventTargetMixin {
         this._nextMeasurementId = 1;
         this._inflightMeasurementId = null;
         this._pendingLatencyRender = null;
-        this._firstFrameRendered = false; // a frame has been painted since connecting ("firstframe" event)
-        this._awaitingResizeReply = false; // sent SetDesktopSize, no ExtendedDesktopSize reply yet
-        this._resizeRepliedAt = null;      // when that reply came, if before "firstframe"
+        this._firstFrameRendered = false;
+        this._awaitingResizeReply = false;
+        this._resizeRepliedAt = null;
         this._firstFrameTimer = null;
 
         this._clipboardText = null;
@@ -357,7 +357,6 @@ export default class RFB extends EventTargetMixin {
             },
             enabled: () => this.autoKeyboard,
         });
-        // Native touch: a finger held still and then moved is a mouse drag.
         this._touchHold = new TouchHold({
             touch: (id, state, clientX, clientY) => {
                 const pos = clientToElement(clientX, clientY, this._canvas);
@@ -862,9 +861,6 @@ export default class RFB extends EventTargetMixin {
         }
     }
 
-    // Native touch: a finger held still (TouchHold's holdMs) and then moved
-    // drags the mouse's left button; held still longer (longMs), a touch
-    // from then on. Off: every touch goes to the server as it happens.
     get touchHoldSelect() { return this._touchHoldSelect; }
     set touchHoldSelect(value) {
         value = !!value;
@@ -1224,12 +1220,7 @@ export default class RFB extends EventTargetMixin {
         }
     }
 
-    // A ClipboardItem from clipboard.read() reads the system clipboard when
-    // getType() is called, and Chrome throws InvalidStateError if the clipboard
-    // changed after read(): a copy on the client, a clipboard manager, or our
-    // own write of the server's clipboard. Wait for our write, read once more
-    // if it changes anyway, and failing that try again on the next
-    // user-driven event.
+    // getType() throws InvalidStateError if the clipboard changed since read()
     async _sendLocalClipboard() {
         for (let attempt = 0; ; attempt++) {
             await this._clipboardWrite;
@@ -1332,8 +1323,6 @@ export default class RFB extends EventTargetMixin {
 
 
         if (dataset.length > 0) {
-            // Only once every type has been read: a getType() that throws
-            // must not leave the hash claiming this clipboard was sent.
             this._clipHash = h;
             if (this._isPrimaryDisplay) {
                 RFB.messages.sendBinaryClipboard(this._sock, dataset, mimes);
@@ -4049,7 +4038,6 @@ export default class RFB extends EventTargetMixin {
     }
 
     _write_binary_clipboard(clipItemData, textdata) {
-        // _sendLocalClipboard() waits on this so it doesn't read mid-write
         this._clipboardWrite = navigator.clipboard.write([new ClipboardItem(clipItemData)]).then(
             () => {
                 if (textdata) {
@@ -4221,14 +4209,7 @@ export default class RFB extends EventTargetMixin {
     }
 
     _onFrameRendered() {
-        // The canvas is opaque black until the first frame is painted, so
-        // "connect" (ServerInit) is too early to reveal it. "firstframe" is
-        // the first frame painted after connecting. When the session is being
-        // resized to the viewer, frames before the server's reply are at the
-        // old size, and for a moment after it the new area is still black
-        // while the window manager and the apps lay out again; then it waits
-        // for the display to settle (FIRST_FRAME_SETTLE_MS without a new
-        // frame, at most FIRST_FRAME_SETTLE_MAX_MS after the reply).
+        // After a resize, wait for the desktop to redraw at the new size
         if (!this._firstFrameRendered && !this._awaitingResizeReply &&
             this._rfbConnectionState === 'connected') {
             clearTimeout(this._firstFrameTimer);
@@ -4522,7 +4503,6 @@ export default class RFB extends EventTargetMixin {
         const payload = this._sock.rQshiftBytes(len);
         const processRelay = this._unixRelays[name];
         processRelay && processRelay(payload);
-        // true: _handleMessage() goes on to the next message in the queue
         return true;
     }
 
@@ -5036,7 +5016,7 @@ export default class RFB extends EventTargetMixin {
          *  2 - another client requested the resize
          */
 
-        // x === 1: the reply to our own SetDesktopSize, accepted or not.
+        // x === 1: reply to our own SetDesktopSize
         if (this._FBU.x === 1 && this._awaitingResizeReply) {
             this._awaitingResizeReply = false;
             if (!this._firstFrameRendered) {
@@ -5216,7 +5196,6 @@ export default class RFB extends EventTargetMixin {
     }
 }
 
-// "firstframe" after a resize: quiet time without a new frame, and the cap.
 RFB.FIRST_FRAME_SETTLE_MS = 120;
 RFB.FIRST_FRAME_SETTLE_MAX_MS = 500;
 

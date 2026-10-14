@@ -4,11 +4,8 @@ const expect = chai.expect;
 
 import initSmartcardRelay from '../core/output/smartcard.js';
 
-// Relay packets: u8 command, u16 big-endian payload length, payload. A
-// bridge that tags its requests appends a request ID after the payload:
-// the marker byte 0x49 and a 32-bit big-endian ID. The answer carries the
-// same trailer, so the bridge can tell a late answer to an earlier
-// request from the answer it is waiting for.
+// Relay packets: u8 command, u16 big-endian payload length, payload,
+// then optionally 0x49 and a 32-bit big-endian request ID.
 const REQUEST_TRANSMIT = 0x05;
 const REQUEST_INITIALIZE = 0x06;
 const RESPONSE_ACK = 0x80;
@@ -23,10 +20,7 @@ function packet(command, payload, id) {
 
 const hex = bytes => Array.from(bytes).map(b => b.toString(16).padStart(2, "0").toUpperCase()).join("");
 
-// A fake of Kasm's smartcard extension: every call is answered through
-// its own callback. A transmit's answer is the APDU followed by 90 00,
-// after the delay transmitDelay(apdu) gives, so answers can be made to
-// come back in another order than their requests.
+// Fake smartcard extension: a transmit answers APDU + 90 00 after transmitDelay(apdu)
 function fakeExtension(transmitDelay) {
     const ok = "0x00000000";
     return {
@@ -87,8 +81,6 @@ describe('Smartcard relay', function () {
         expect(handler).to.be.a('function');
     }
 
-    // Each request's handler is async and not queued, so this waits until
-    // the expected number of answers has been sent.
     async function answers(n) {
         for (let i = 0; i < 200 && sent.length < n; i++) {
             await new Promise(r => setTimeout(r, 5));
