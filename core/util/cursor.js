@@ -9,7 +9,9 @@ import { supportsCursorURIs, isTouchDevice } from './browser.js';
 const needsFallback = !supportsCursorURIs || isTouchDevice;
 
 export default class Cursor {
-    constructor() {
+    // fallback: draw the cursor here rather than as the target's CSS cursor
+    // (default: on a touch device, or without cursor URIs)
+    constructor(fallback = needsFallback) {
         this._target = null;
 
         this._canvas = document.createElement('canvas');
@@ -18,8 +20,12 @@ export default class Cursor {
         this._canvas.style.pointerEvents = 'none';
         // Can't use "display" because of Firefox bug #1445997
         this._canvas.style.visibility = 'hidden';
-        this._useFallback = needsFallback;
+        this._needsFallback = fallback;
+        this._useFallback = fallback;
         this._nativeTouch = false;
+        // The last pointer was a finger: with native touch the cursor stays
+        // hidden until the mouse moves again.
+        this._lastTouch = false;
 
         this._position = { x: 0, y: 0 };
         this._hotSpot = { x: 0, y: 0 };
@@ -29,6 +35,8 @@ export default class Cursor {
             'mouseleave': this._handleMouseLeave.bind(this),
             'mousemove': this._handleMouseMove.bind(this),
             'mouseup': this._handleMouseUp.bind(this),
+            'pointerdown': this._handlePointer.bind(this),
+            'pointermove': this._handlePointer.bind(this),
         };
     }
 
@@ -42,7 +50,7 @@ export default class Cursor {
         
         document.body.appendChild(this._canvas);
         
-        if (needsFallback) {
+        if (this._needsFallback) {
             // Only add the event listeners if this will be responsible for
             // rendering the cursor all the time. Otherwise, the cursor will
             // only be rendered then the forced emulation is turned on, and
@@ -53,6 +61,8 @@ export default class Cursor {
             this._target.addEventListener('mouseleave', this._eventHandlers.mouseleave, options);
             this._target.addEventListener('mousemove', this._eventHandlers.mousemove, options);
             this._target.addEventListener('mouseup', this._eventHandlers.mouseup, options);
+            this._target.addEventListener('pointerdown', this._eventHandlers.pointerdown, options);
+            this._target.addEventListener('pointermove', this._eventHandlers.pointermove, options);
         }
 
         this.clear();
@@ -63,12 +73,14 @@ export default class Cursor {
             return;
         }
 
-        if (needsFallback) {
+        if (this._needsFallback) {
             const options = { capture: true, passive: true };
             this._target.removeEventListener('mouseover', this._eventHandlers.mouseover, options);
             this._target.removeEventListener('mouseleave', this._eventHandlers.mouseleave, options);
             this._target.removeEventListener('mousemove', this._eventHandlers.mousemove, options);
             this._target.removeEventListener('mouseup', this._eventHandlers.mouseup, options);
+            this._target.removeEventListener('pointerdown', this._eventHandlers.pointerdown, options);
+            this._target.removeEventListener('pointermove', this._eventHandlers.pointermove, options);
         }
 
         document.body.removeChild(this._canvas);
@@ -96,10 +108,10 @@ export default class Cursor {
         ctx.clearRect(0, 0, w, h);
         ctx.putImageData(img, 0, 0);
 
-        if (this._useFallback || needsFallback) {
+        if (this._useFallback || this._needsFallback) {
             this._updatePosition();
         }
-        if (!needsFallback) {
+        if (!this._needsFallback) {
             let url = this._canvas.toDataURL();
             this._target.style.cursor = 'url(' + url + ')' + hotx + ' ' + hoty + ', default';
         }
@@ -139,7 +151,7 @@ export default class Cursor {
     // Force the use of cursor emulation. This is needed when the pointer lock
     // is in use, since the browser will not render the cursor.
     setEmulateCursor(emulate) {
-        if (needsFallback) {
+        if (this._needsFallback) {
             // We need to use the fallback all the time, so we shouldn't update
             // the fallback flag.
             return;
@@ -171,6 +183,18 @@ export default class Cursor {
         this._position.y = event.clientY - this._hotSpot.y;
 
         this._updatePosition();
+    }
+
+    // A pointer event comes before the mouse events it causes, and a touch's
+    // compatibility mouse events have none of their own: a finger hides the
+    // cursor (with native touch), and the mouse's next move shows it.
+    _handlePointer(event) {
+        const touch = event.pointerType === 'touch';
+        if (touch === this._lastTouch)
+            return;
+        this._lastTouch = touch;
+        if (touch && this._nativeTouch)
+            this._hideCursor();
     }
 
     _handleMouseUp(event) {
@@ -245,12 +269,12 @@ export default class Cursor {
         if (this._nativeTouch === value)
             return;
         this._nativeTouch = value;
-        if (value)
+        if (value && this._lastTouch)
             this._hideCursor();
     }
 
     _updateVisibility(target) {
-        if (this._nativeTouch) {
+        if (this._nativeTouch && this._lastTouch) {
             this._hideCursor();
             return;
         }
