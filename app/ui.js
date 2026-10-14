@@ -358,13 +358,8 @@ const UI = {
         UI.initSetting('enable_ime', false);
         UI.initSetting('touch_mode', 'native');
         UI.initSetting('auto_keyboard', true);
-        // Native touch on a phone or tablet: a finger held still and then
-        // moved drags the mouse (selects text in apps that select by mouse).
         UI.initSetting('touch_hold_select', deviceClass() !== 'desktop');
         UI.initSetting('enable_webrtc', false);
-        // Phones and tablets have 2-3 device pixels per CSS pixel; without
-        // native resolution the session runs at about half that and is
-        // stretched soft. A saved choice still wins.
         UI.initSetting('enable_hidpi', deviceClass() !== 'desktop');
         UI.initSetting('fallback_image_mode', false);
 
@@ -2369,11 +2364,7 @@ const UI = {
         UI.sendMessage("update_codecs", {current: mode, codecs: availableModes});
     },
 
-    // Tell the embedding page about connection state changes. "connected" waits
-    // for the first frame to be painted: until then the canvas is opaque black,
-    // and a page that drops its loading screen on "connected" would show that
-    // black for the ~100 ms before the first update arrives. If no frame comes
-    // within FIRST_FRAME_WAIT_MS, "connected" is sent anyway.
+    // "connected" waits for the first painted frame; the canvas is black until then.
     FIRST_FRAME_WAIT_MS: 1000,
     pendingConnectedTimer: null,
 

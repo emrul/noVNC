@@ -38,13 +38,8 @@ const commandToString = (command) => {
   }[command] || `0x${command.toString(16).toUpperCase()}`;
 };
 
-// A bridge may tag a request with an ID, appended after the payload as
-// ID_MARKER and a 32-bit big-endian ID. The length field does not count
-// it, so a client that ignores trailing bytes reads the request as
-// before. The answer carries the same trailer: requests are handled
-// concurrently, so answers can go back out of order, and the bridge
-// drops an answer whose ID is not the request it is waiting for. A
-// bridge that does not tag (the stock one) gets answers without it.
+// Optional request ID trailer: ID_MARKER and a 32-bit big-endian ID after the
+// payload, not counted in the length. Answers echo it.
 const ID_MARKER = 0x49;
 const ID_TRAILER_LENGTH = 5;
 
@@ -78,7 +73,6 @@ const parseRelayPacket = (data) => {
     throw new Error("invalid_relay_packet");
   }
 
-  // Other trailing bytes are ignored, as they always were.
   const end = 3 + payloadLength;
   const requestId =
     data.length === end + ID_TRAILER_LENGTH && data[end] === ID_MARKER

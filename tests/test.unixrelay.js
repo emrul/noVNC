@@ -5,14 +5,9 @@ const expect = chai.expect;
 import RFB from '../core/rfb.js';
 import FakeWebSocket from './fake.websocket.js';
 
-// The server sends a print as three or more unix relay messages (start,
-// chunks, end) in one websocket message. Each message in the receive queue
-// must be handled when it arrives, not one per later websocket message: an
-// idle session sends nothing else, and the rest of the print waits for the
-// next screen update or smartcard poll.
-//
-// FakeWebSocket._receiveData() delivers one byte per message event, which
-// hides this, so these tests deliver all the bytes in one event.
+// Several relay messages in one websocket message must all be handled.
+// FakeWebSocket._receiveData() delivers one byte per event, so these tests
+// deliver all the bytes in one event.
 
 function relayMsg(name, payload) {
     const data = [183, name.length];

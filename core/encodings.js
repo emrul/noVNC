@@ -41,8 +41,7 @@ export const encodings = {
     pseudoEncodingKasmDisconnectNotify: -1885,
     pseudoEncodingDirectMouse: -1884,
     pseudoEncodingTouch: -1883,
-    // The viewer's device (one of the three) and its devicePixelRatio in
-    // hundredths, 1.00 to 4.99: pseudoEncodingDevicePixelRatio100 + dpr*100 - 100.
+    // Pixel ratio 1.00-4.99 is pseudoEncodingDevicePixelRatio100 + (dpr * 100 - 100)
     pseudoEncodingDeviceDesktop: -1882,
     pseudoEncodingDevicePhone: -1881,
     pseudoEncodingDeviceTablet: -1880,

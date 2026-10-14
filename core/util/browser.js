@@ -99,14 +99,11 @@ export function isIOS() {
             isIPadOS());
 }
 
-// iPadOS Safari presents as a Mac (platform "MacIntel", a Mac User-Agent);
-// only its touch points give it away.
+// iPadOS Safari reports itself as a Mac
 export function isIPadOS() {
     return !!navigator && navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
 }
 
-// The viewer's device: 'phone', 'tablet' or 'desktop'. The client sends it
-// to the server with its encodings, so the session can adapt to the device.
 export function deviceClass() {
     const ua = (navigator && navigator.userAgent) || '';
     const uaMobile = !!(navigator && navigator.userAgentData && navigator.userAgentData.mobile);

@@ -1,8 +1,5 @@
 import Cursor from '../core/util/cursor.js';
 
-// The cursor noVNC draws itself (the fallback), as on a touch device: a
-// laptop with a touchscreen counts as one, and then this canvas is the only
-// cursor over the desktop (the target's CSS cursor is "none").
 describe('Cursor drawn by noVNC (touch device)', function () {
     let target, cursor;
 
@@ -13,7 +10,6 @@ describe('Cursor drawn by noVNC (touch device)', function () {
     function mouse(type, x = 10, y = 10) {
         target.dispatchEvent(new MouseEvent(type, { clientX: x, clientY: y, bubbles: true }));
     }
-    // A real mouse move: its pointer event, then the mouse event.
     function mouseMove(x, y) {
         pointer('pointermove', 'mouse', x, y);
         mouse('mousemove', x, y);

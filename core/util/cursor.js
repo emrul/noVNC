@@ -9,8 +9,6 @@ import { supportsCursorURIs, isTouchDevice } from './browser.js';
 const needsFallback = !supportsCursorURIs || isTouchDevice;
 
 export default class Cursor {
-    // fallback: draw the cursor here rather than as the target's CSS cursor
-    // (default: on a touch device, or without cursor URIs)
     constructor(fallback = needsFallback) {
         this._target = null;
 
@@ -23,8 +21,6 @@ export default class Cursor {
         this._needsFallback = fallback;
         this._useFallback = fallback;
         this._nativeTouch = false;
-        // The last pointer was a finger: with native touch the cursor stays
-        // hidden until the mouse moves again.
         this._lastTouch = false;
 
         this._position = { x: 0, y: 0 };
@@ -185,9 +181,7 @@ export default class Cursor {
         this._updatePosition();
     }
 
-    // A pointer event comes before the mouse events it causes, and a touch's
-    // compatibility mouse events have none of their own: a finger hides the
-    // cursor (with native touch), and the mouse's next move shows it.
+    // Touch compatibility mouse events have no pointer events of their own
     _handlePointer(event) {
         const touch = event.pointerType === 'touch';
         if (touch === this._lastTouch)
