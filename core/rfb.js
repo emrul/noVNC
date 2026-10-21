@@ -12,7 +12,7 @@ import { toUnsigned32bit, toSigned32bit } from './util/int.js';
 import * as Log from './util/logging.js';
 import { encodeUTF8, decodeUTF8, uuidv4 } from './util/strings.js';
 import { hashUInt8Array } from './util/int.js';
-import { dragThreshold, supportsCursorURIs, isTouchDevice, isWindows, isMac, isIOS, isDesktop, deviceClass } from './util/browser.js';
+import { dragThreshold, supportsCursorURIs, isTouchDevice, isWindows, isMac, isIOS, isDesktop, deviceClass, viewerTheme } from './util/browser.js';
 import { clientToElement } from './util/element.js';
 import { setCapture } from './util/events.js';
 import EventTargetMixin from './util/eventtarget.js';
@@ -282,6 +282,7 @@ export default class RFB extends EventTargetMixin {
             handleFocusChange: this._handleFocusChange.bind(this),
             handleMouseOut: this._handleMouseOut.bind(this),
             handleVisibilityChange: this._handleVisibilityChange.bind(this),
+            handleThemeChange: this._handleThemeChange.bind(this),
         };
 
         // main setup
@@ -1455,6 +1456,12 @@ export default class RFB extends EventTargetMixin {
         // FIXME: Use ResizeObserver, or hidden overflow
         window.addEventListener('resize', this._eventHandlers.windowResize);
 
+        // Tell the server when the viewer's theme changes
+        this._theme = viewerTheme();
+        this._themeQuery = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+        if (this._themeQuery) this._themeQuery.addEventListener('change', this._eventHandlers.handleThemeChange);
+        window.addEventListener('storage', this._eventHandlers.handleThemeChange);
+
         // Always grab focus on some kind of click event
         this._canvas.addEventListener("mousedown", this._eventHandlers.focusCanvas);
         this._canvas.addEventListener("touchstart", this._eventHandlers.focusCanvas);
@@ -1653,6 +1660,8 @@ export default class RFB extends EventTargetMixin {
         this._canvas.removeEventListener("focus", this._eventHandlers.handleFocusChange);
         window.removeEventListener('resize', this._eventHandlers.windowResize);
         window.removeEventListener('focus', this._eventHandlers.handleFocusChange);
+        if (this._themeQuery) this._themeQuery.removeEventListener('change', this._eventHandlers.handleThemeChange);
+        window.removeEventListener('storage', this._eventHandlers.handleThemeChange);
         document.removeEventListener('visibilitychange', this._eventHandlers.handleVisibilityChange);
 
         this._keyboard.ungrab();
@@ -3599,6 +3608,13 @@ export default class RFB extends EventTargetMixin {
         return false;
     }
 
+    _handleThemeChange() {
+        const theme = viewerTheme();
+        if (theme === this._theme) return;
+        this._theme = theme;
+        if (this._rfbConnectionState === 'connected') this._sendEncodings();
+    }
+
     _sendEncodings() {
         const encs = [];
 
@@ -3639,6 +3655,7 @@ export default class RFB extends EventTargetMixin {
                   encodings.pseudoEncodingDeviceDesktop);
         const dpr = Math.min(499, Math.max(100, Math.round((window.devicePixelRatio || 1) * 100)));
         encs.push(encodings.pseudoEncodingDevicePixelRatio100 + dpr - 100);
+        encs.push(this._theme === 'dark' ? encodings.pseudoEncodingThemeDark : encodings.pseudoEncodingThemeLight);
         if (this._hasWebp())
             encs.push(encodings.pseudoEncodingWEBP);
         if (this._enableQOI)
