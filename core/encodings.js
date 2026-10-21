@@ -47,6 +47,8 @@ export const encodings = {
     pseudoEncodingDeviceTablet: -1880,
     pseudoEncodingDevicePixelRatio100: -1879,
     pseudoEncodingDevicePixelRatio499: -1480,
+    pseudoEncodingThemeLight: -1479,
+    pseudoEncodingThemeDark: -1478,
 
     pseudoEncodingHardwareProfile0: -1170,
     pseudoEncodingHardwareProfile4: -1166,

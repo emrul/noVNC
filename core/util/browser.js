@@ -116,6 +116,20 @@ export function deviceClass() {
     return 'desktop';
 }
 
+// The viewer's colour theme: 'light' or 'dark'. A Light or Dark choice in
+// the Kasm UI wins; otherwise the browser's own preference.
+export function viewerTheme() {
+    let choice = null;
+    try {
+        choice = window.localStorage.getItem('themecolor');
+    } catch (e) { /* storage blocked */ }
+    if (choice === 'Light' || choice === 'Dark') return choice.toLowerCase();
+    if (window.matchMedia) {
+        return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+    return 'light';
+}
+
 export function isSafari() {
     return navigator && (navigator.userAgent.indexOf('Safari') !== -1 &&
                          navigator.userAgent.indexOf('Chrome') === -1);
